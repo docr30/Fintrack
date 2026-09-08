@@ -1,4 +1,4 @@
-import { Home, Receipt, BarChart3, Tags, UserCircle, Sparkles, Plus } from "lucide-react";
+import { Home, Receipt, BarChart3, Tags, UserCircle, Sparkles, Plus, ClipboardList } from "lucide-react";
 import { NAVY, PAPER, GREEN, SHADOW_SM } from "../lib/constants";
 import FinTrackMark from "./FinTrackMark";
 
@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { key: "transactions", label: "Transaksi", icon: Receipt },
   { key: "reports", label: "Laporan", icon: BarChart3 },
   { key: "categories", label: "Kategori", icon: Tags },
+  { key: "budgeting", label: "Budgeting", icon: ClipboardList },
   { key: "profile", label: "Profil", icon: UserCircle },
 ];
 
