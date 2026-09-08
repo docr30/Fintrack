@@ -34,13 +34,29 @@ export function Field({ label, children, error }) {
   );
 }
 
-export function TxModal({ categories, onClose, onSave }) {
-  const [type, setType] = useState("expense");
-  const [date, setDate] = useState(todayISO());
-  const [categoryId, setCategoryId] = useState("");
-  const [item, setItem] = useState("");
-  const [amount, setAmount] = useState("");
+function friendlyError(err) {
+  if (!err) return "";
+  const msg = err.message || String(err);
+  if (msg.includes("duplicate key") || msg.includes("already exists")) {
+    return "Sudah ada data dengan nama yang sama.";
+  }
+  if (msg.toLowerCase().includes("row-level security") || msg.toLowerCase().includes("policy")) {
+    return "Sesi login bermasalah. Coba muat ulang halaman lalu masuk lagi.";
+  }
+  if (msg.toLowerCase().includes("network") || msg.toLowerCase().includes("failed to fetch")) {
+    return "Koneksi bermasalah. Periksa internet Anda lalu coba lagi.";
+  }
+  return "Gagal menyimpan: " + msg;
+}
+
+export function TxModal({ categories, initial, onClose, onSave }) {
+  const [type, setType] = useState(initial?.type || "expense");
+  const [date, setDate] = useState(initial?.date || todayISO());
+  const [categoryId, setCategoryId] = useState(initial?.category_id || "");
+  const [item, setItem] = useState(initial?.item || "");
+  const [amount, setAmount] = useState(initial?.amount ?? "");
   const [errors, setErrors] = useState({});
+  const [submitError, setSubmitError] = useState("");
   const [saving, setSaving] = useState(false);
   const options = categories.filter((c) => c.type === type);
 
@@ -50,14 +66,23 @@ export function TxModal({ categories, onClose, onSave }) {
     if (!amount || Number(amount) <= 0) errs.amount = "Nominal harus lebih dari 0";
     if (!item.trim()) errs.item = "Item wajib diisi";
     setErrors(errs);
+    setSubmitError("");
     if (Object.keys(errs).length) return;
     setSaving(true);
-    await onSave({ date, category_id: categoryId, item: item.trim(), amount: Number(amount), type });
+    const err = await onSave({
+      id: initial?.id,
+      date,
+      category_id: categoryId,
+      item: item.trim(),
+      amount: Number(amount),
+      type,
+    });
     setSaving(false);
+    if (err) setSubmitError(friendlyError(err));
   }
 
   return (
-    <ModalShell onClose={onClose} title="Tambah transaksi">
+    <ModalShell onClose={onClose} title={initial ? "Ubah transaksi" : "Tambah transaksi"}>
       <div className="space-y-4">
         <div className="flex rounded-xl overflow-hidden" style={{ border: "1px solid #E2E8F0" }}>
           {["expense", "income"].map((t) => (
@@ -86,13 +111,18 @@ export function TxModal({ categories, onClose, onSave }) {
         <Field label="Nominal" error={errors.amount}>
           <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" className="ft-input" />
         </Field>
+        {submitError && (
+          <div className="text-xs rounded-lg px-3 py-2" style={{ color: RED, background: "rgba(239,68,68,0.08)" }}>
+            {submitError}
+          </div>
+        )}
         <button
           onClick={submit}
           disabled={saving}
           className="w-full py-3 rounded-xl text-white text-sm font-medium disabled:opacity-60"
           style={{ background: NAVY }}
         >
-          {saving ? "Menyimpan..." : "Simpan transaksi"}
+          {saving ? "Menyimpan..." : initial ? "Simpan perubahan" : "Simpan transaksi"}
         </button>
       </div>
       <style>{`.ft-input { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #E2E8F0; font-size: 14px; outline: none; } .ft-input:focus { border-color: ${NAVY}; }`}</style>
@@ -106,13 +136,17 @@ export function CatModal({ initial, onClose, onSave }) {
   const [color, setColor] = useState(initial?.color || COLOR_OPTIONS[0]);
   const [icon, setIcon] = useState(initial?.icon || ICON_OPTIONS[0]);
   const [error, setError] = useState("");
+  const [submitError, setSubmitError] = useState("");
   const [saving, setSaving] = useState(false);
 
   async function submit() {
     if (!name.trim()) { setError("Nama kategori wajib diisi"); return; }
+    setError("");
+    setSubmitError("");
     setSaving(true);
-    await onSave({ id: initial?.id, name: name.trim(), type, color, icon, locked: initial?.locked || false });
+    const err = await onSave({ id: initial?.id, name: name.trim(), type, color, icon, locked: initial?.locked || false });
     setSaving(false);
+    if (err) setSubmitError(friendlyError(err));
   }
 
   return (
@@ -158,6 +192,11 @@ export function CatModal({ initial, onClose, onSave }) {
             ))}
           </div>
         </div>
+        {submitError && (
+          <div className="text-xs rounded-lg px-3 py-2" style={{ color: RED, background: "rgba(239,68,68,0.08)" }}>
+            {submitError}
+          </div>
+        )}
         <button
           onClick={submit}
           disabled={saving}

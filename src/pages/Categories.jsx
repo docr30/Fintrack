@@ -49,9 +49,9 @@ export default function Categories({ categories, onAdd, onUpdate, onDelete }) {
           initial={editing}
           onClose={() => setShowModal(false)}
           onSave={async (cat) => {
-            if (cat.id) await onUpdate(cat.id, cat);
-            else await onAdd(cat);
-            setShowModal(false);
+            const err = cat.id ? await onUpdate(cat.id, cat) : await onAdd(cat);
+            if (!err) setShowModal(false);
+            return err;
           }}
         />
       )}

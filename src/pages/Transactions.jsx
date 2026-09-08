@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { Filter, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
-import { NAVY, GREEN, RED } from "../lib/constants";
+import { Filter, ChevronLeft, ChevronRight, Trash2, Pencil, Search } from "lucide-react";
+import { NAVY, GREEN, RED, MONTHS } from "../lib/constants";
 import { idr, formatDate } from "../lib/format";
 import CatIcon from "../components/CatIcon";
 import { TxModal } from "../components/Modals";
@@ -22,9 +22,17 @@ function FilterChip({ active, onClick, label, color, iconKey }) {
   );
 }
 
-export default function Transactions({ categories, transactions, onAdd, onDelete, showModal, setShowModal }) {
+function monthLabel(key) {
+  const [y, m] = key.split("-");
+  return `${MONTHS[parseInt(m, 10) - 1]} ${y}`;
+}
+
+export default function Transactions({ categories, transactions, onAdd, onUpdate, onDelete, showModal, setShowModal }) {
   const [filterCat, setFilterCat] = useState("all");
+  const [filterMonth, setFilterMonth] = useState("all");
+  const [keyword, setKeyword] = useState("");
   const [page, setPage] = useState(1);
+  const [editingTx, setEditingTx] = useState(null);
 
   const catById = useMemo(() => {
     const m = {};
@@ -42,19 +50,63 @@ export default function Transactions({ categories, transactions, onAdd, onDelete
   }, [transactions]);
 
   const desc = useMemo(() => [...withBalance].reverse(), [withBalance]);
-  const filtered = useMemo(
-    () => (filterCat === "all" ? desc : desc.filter((t) => t.category_id === filterCat)),
-    [desc, filterCat]
-  );
+
+  const monthOptions = useMemo(() => {
+    const s = new Set(transactions.map((t) => t.date.slice(0, 7)));
+    return Array.from(s).sort().reverse();
+  }, [transactions]);
+
+  const filtered = useMemo(() => {
+    const kw = keyword.trim().toLowerCase();
+    return desc.filter((t) => {
+      if (filterCat !== "all" && t.category_id !== filterCat) return false;
+      if (filterMonth !== "all" && t.date.slice(0, 7) !== filterMonth) return false;
+      if (kw) {
+        const catName = (catById[t.category_id]?.name || "").toLowerCase();
+        const itemName = (t.item || "").toLowerCase();
+        if (!itemName.includes(kw) && !catName.includes(kw)) return false;
+      }
+      return true;
+    });
+  }, [desc, filterCat, filterMonth, keyword, catById]);
+
   const pageSize = 10;
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
 
+  async function handleSave(tx) {
+    const err = tx.id ? await onUpdate(tx.id, tx) : await onAdd(tx);
+    if (!err) {
+      setShowModal(false);
+      setEditingTx(null);
+    }
+    return err;
+  }
+
   return (
     <div className="space-y-4">
+      <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white" style={{ border: "1px solid #E2E8F0" }}>
+        <Search size={15} color="#94A3B8" />
+        <input
+          value={keyword}
+          onChange={(e) => { setKeyword(e.target.value); setPage(1); }}
+          placeholder="Cari item atau kategori..."
+          className="w-full text-sm outline-none"
+        />
+      </div>
+
       <div className="flex items-center gap-2 overflow-x-auto pb-1">
         <Filter size={15} className="text-slate-400 flex-shrink-0" />
-        <FilterChip active={filterCat === "all"} onClick={() => { setFilterCat("all"); setPage(1); }} label="Semua" />
+        <select
+          value={filterMonth}
+          onChange={(e) => { setFilterMonth(e.target.value); setPage(1); }}
+          className="flex-shrink-0 text-xs px-3 py-1.5 rounded-full bg-white"
+          style={{ border: "1px solid #E2E8F0", color: "#475569" }}
+        >
+          <option value="all">Semua bulan</option>
+          {monthOptions.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
+        </select>
+        <FilterChip active={filterCat === "all"} onClick={() => { setFilterCat("all"); setPage(1); }} label="Semua kategori" />
         {categories.map((c) => (
           <FilterChip
             key={c.id}
@@ -104,7 +156,10 @@ export default function Transactions({ categories, transactions, onAdd, onDelete
                   <td className="ft-num py-3 text-right" style={{ color: RED }}>{t.type === "expense" ? idr(t.amount) : "-"}</td>
                   <td className="ft-num py-3 pr-5 text-right font-medium">{idr(t.balance)}</td>
                   <td className="py-3 pr-5 text-right">
-                    <button onClick={() => onDelete(t.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={15} /></button>
+                    <div className="flex items-center justify-end gap-2">
+                      <button onClick={() => { setEditingTx(t); setShowModal(true); }} className="text-slate-400 hover:text-slate-600"><Pencil size={15} /></button>
+                      <button onClick={() => onDelete(t.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={15} /></button>
+                    </div>
                   </td>
                 </tr>
               );
@@ -130,7 +185,10 @@ export default function Transactions({ categories, transactions, onAdd, onDelete
                     <div className="text-xs text-slate-500">{cat?.name} &middot; {formatDate(t.date)}</div>
                   </div>
                 </div>
-                <button onClick={() => onDelete(t.id)} className="text-slate-300"><Trash2 size={15} /></button>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button onClick={() => { setEditingTx(t); setShowModal(true); }} className="text-slate-300"><Pencil size={15} /></button>
+                  <button onClick={() => onDelete(t.id)} className="text-slate-300"><Trash2 size={15} /></button>
+                </div>
               </div>
               <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: "1px solid #F1F5F9" }}>
                 <div className="ft-num text-sm font-medium" style={{ color: isIncome ? GREEN : RED }}>
@@ -154,8 +212,9 @@ export default function Transactions({ categories, transactions, onAdd, onDelete
       {showModal && (
         <TxModal
           categories={categories}
-          onClose={() => setShowModal(false)}
-          onSave={async (tx) => { await onAdd(tx); setShowModal(false); }}
+          initial={editingTx}
+          onClose={() => { setShowModal(false); setEditingTx(null); }}
+          onSave={handleSave}
         />
       )}
     </div>

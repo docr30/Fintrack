@@ -36,12 +36,18 @@ function AppInner() {
 
   return (
     <Layout view={view} setView={setView} onAddTransaction={() => setShowTxModal(true)}>
+      {txs.error && (
+        <div className="mb-4 text-xs rounded-xl px-4 py-3" style={{ color: "#B91C1C", background: "#FEF2F2", border: "1px solid #FECACA" }}>
+          Gagal memuat sebagian data transaksi dari server ({txs.error.message}). Coba muat ulang halaman.
+        </div>
+      )}
       {view === "dashboard" && <Dashboard categories={cats.categories} transactions={txs.transactions} />}
       {view === "transactions" && (
         <Transactions
           categories={cats.categories}
           transactions={txs.transactions}
           onAdd={txs.addTransaction}
+          onUpdate={txs.updateTransaction}
           onDelete={txs.deleteTransaction}
           showModal={showTxModal}
           setShowModal={setShowTxModal}
