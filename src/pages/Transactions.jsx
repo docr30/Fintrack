@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Filter, ChevronLeft, ChevronRight, Trash2, Pencil, Search } from "lucide-react";
+import { Filter, ChevronLeft, ChevronRight, Trash2, Pencil, Search, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { NAVY, GREEN, RED, MONTHS } from "../lib/constants";
 import { idr, formatDate } from "../lib/format";
 import CatIcon from "../components/CatIcon";
@@ -22,13 +22,9 @@ function FilterChip({ active, onClick, label, color, iconKey }) {
   );
 }
 
-function monthLabel(key) {
-  const [y, m] = key.split("-");
-  return `${MONTHS[parseInt(m, 10) - 1]} ${y}`;
-}
-
 export default function Transactions({ categories, transactions, onAdd, onUpdate, onDelete, showModal, setShowModal }) {
   const [filterCat, setFilterCat] = useState("all");
+  const [filterYear, setFilterYear] = useState("all");
   const [filterMonth, setFilterMonth] = useState("all");
   const [keyword, setKeyword] = useState("");
   const [page, setPage] = useState(1);
@@ -51,8 +47,8 @@ export default function Transactions({ categories, transactions, onAdd, onUpdate
 
   const desc = useMemo(() => [...withBalance].reverse(), [withBalance]);
 
-  const monthOptions = useMemo(() => {
-    const s = new Set(transactions.map((t) => t.date.slice(0, 7)));
+  const yearOptions = useMemo(() => {
+    const s = new Set(transactions.map((t) => t.date.slice(0, 4)));
     return Array.from(s).sort().reverse();
   }, [transactions]);
 
@@ -60,7 +56,8 @@ export default function Transactions({ categories, transactions, onAdd, onUpdate
     const kw = keyword.trim().toLowerCase();
     return desc.filter((t) => {
       if (filterCat !== "all" && t.category_id !== filterCat) return false;
-      if (filterMonth !== "all" && t.date.slice(0, 7) !== filterMonth) return false;
+      if (filterYear !== "all" && t.date.slice(0, 4) !== filterYear) return false;
+      if (filterMonth !== "all" && t.date.slice(5, 7) !== filterMonth) return false;
       if (kw) {
         const catName = (catById[t.category_id]?.name || "").toLowerCase();
         const itemName = (t.item || "").toLowerCase();
@@ -68,7 +65,13 @@ export default function Transactions({ categories, transactions, onAdd, onUpdate
       }
       return true;
     });
-  }, [desc, filterCat, filterMonth, keyword, catById]);
+  }, [desc, filterCat, filterYear, filterMonth, keyword, catById]);
+
+  const summary = useMemo(() => {
+    let income = 0, expense = 0;
+    filtered.forEach((t) => (t.type === "income" ? (income += t.amount) : (expense += t.amount)));
+    return { income, expense, net: income - expense };
+  }, [filtered]);
 
   const pageSize = 10;
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -98,13 +101,24 @@ export default function Transactions({ categories, transactions, onAdd, onUpdate
       <div className="flex items-center gap-2 overflow-x-auto pb-1">
         <Filter size={15} className="text-slate-400 flex-shrink-0" />
         <select
+          value={filterYear}
+          onChange={(e) => { setFilterYear(e.target.value); setPage(1); }}
+          className="flex-shrink-0 text-xs px-3 py-1.5 rounded-full bg-white"
+          style={{ border: "1px solid #E2E8F0", color: "#475569" }}
+        >
+          <option value="all">Semua tahun</option>
+          {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
+        </select>
+        <select
           value={filterMonth}
           onChange={(e) => { setFilterMonth(e.target.value); setPage(1); }}
           className="flex-shrink-0 text-xs px-3 py-1.5 rounded-full bg-white"
           style={{ border: "1px solid #E2E8F0", color: "#475569" }}
         >
           <option value="all">Semua bulan</option>
-          {monthOptions.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
+          {MONTHS.map((m, i) => (
+            <option key={m} value={String(i + 1).padStart(2, "0")}>{m}</option>
+          ))}
         </select>
         <FilterChip active={filterCat === "all"} onClick={() => { setFilterCat("all"); setPage(1); }} label="Semua kategori" />
         {categories.map((c) => (
@@ -118,6 +132,37 @@ export default function Transactions({ categories, transactions, onAdd, onUpdate
           />
         ))}
       </div>
+
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="ft-card bg-white rounded-xl px-4 py-3 flex items-center gap-3 flex-1" style={{ border: "1px solid #E2E8F0" }}>
+          <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "rgba(16,185,129,0.1)" }}>
+            <ArrowUpRight size={15} color={GREEN} />
+          </div>
+          <div className="min-w-0">
+            <div className="text-[11px] text-slate-500">Pemasukan (sesuai filter)</div>
+            <div className="ft-num text-sm font-semibold" style={{ color: GREEN }}>{idr(summary.income)}</div>
+          </div>
+        </div>
+        <div className="ft-card bg-white rounded-xl px-4 py-3 flex items-center gap-3 flex-1" style={{ border: "1px solid #E2E8F0" }}>
+          <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "rgba(239,68,68,0.1)" }}>
+            <ArrowDownRight size={15} color={RED} />
+          </div>
+          <div className="min-w-0">
+            <div className="text-[11px] text-slate-500">Pengeluaran (sesuai filter)</div>
+            <div className="ft-num text-sm font-semibold" style={{ color: RED }}>{idr(summary.expense)}</div>
+          </div>
+        </div>
+        <div className="ft-card bg-white rounded-xl px-4 py-3 flex items-center gap-3 flex-1" style={{ border: "1px solid #E2E8F0" }}>
+          <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "rgba(30,41,59,0.06)" }}>
+            <Filter size={14} color={NAVY} />
+          </div>
+          <div className="min-w-0">
+            <div className="text-[11px] text-slate-500">Selisih</div>
+            <div className="ft-num text-sm font-semibold" style={{ color: summary.net >= 0 ? NAVY : RED }}>{idr(summary.net)}</div>
+          </div>
+        </div>
+      </div>
+
 
       <div className="hidden lg:block ft-card bg-white rounded-2xl overflow-hidden" style={{ border: "1px solid #E2E8F0" }}>
         <table className="w-full text-sm">
